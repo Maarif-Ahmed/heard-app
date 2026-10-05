@@ -38,9 +38,8 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-          GRADLE_OPTS: "-Xmx6g -XX:MaxMetaspaceSize=512m"
         run: |
-          ./gradlew bundleRelease --no-daemon \
+          ./gradlew bundleRelease \
             -Pandroid.injected.signing.store.file="$GITHUB_WORKSPACE/android/app/release.keystore" \
             -Pandroid.injected.signing.store.password="$KEYSTORE_PASSWORD" \
             -Pandroid.injected.signing.key.alias="$KEY_ALIAS" \
