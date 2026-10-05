@@ -13,6 +13,7 @@ Thumbs.db
 # Android signing keystore (never commit)
 *.keystore
 *.jks
+keystore_b64.txt
 
 # Temp files
 tmp_design_template/
