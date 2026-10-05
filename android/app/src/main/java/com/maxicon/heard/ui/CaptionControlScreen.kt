@@ -75,6 +75,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDrawerState
+import android.graphics.Bitmap
+import android.graphics.Color as AndroidColor
+import androidx.compose.foundation.Image
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -88,6 +91,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.qrcode.QRCodeWriter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -805,8 +812,41 @@ private fun SessionCard(
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
+                if (uiState.captionDisplayUrl.isNotBlank() && !uiState.captionDisplayUrl.contains("0.0.0.0")) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    QrCodeImage(
+                        url = uiState.captionDisplayUrl,
+                        modifier = Modifier
+                            .size(160.dp)
+                            .align(Alignment.CenterHorizontally)
+                    )
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun QrCodeImage(url: String, modifier: Modifier = Modifier) {
+    val bitmap = remember(url) {
+        runCatching {
+            val matrix = QRCodeWriter().encode(url, BarcodeFormat.QR_CODE, 512, 512)
+            val bmp = Bitmap.createBitmap(512, 512, Bitmap.Config.RGB_565)
+            for (x in 0 until 512) {
+                for (y in 0 until 512) {
+                    bmp.setPixel(x, y, if (matrix[x, y]) AndroidColor.BLACK else AndroidColor.WHITE)
+                }
+            }
+            bmp
+        }.getOrNull()
+    }
+    bitmap?.let {
+        Image(
+            bitmap = it.asImageBitmap(),
+            contentDescription = "QR code",
+            contentScale = ContentScale.Fit,
+            modifier = modifier
+        )
     }
 }
 

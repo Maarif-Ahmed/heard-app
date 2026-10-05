@@ -1319,9 +1319,9 @@ class CaptionViewModel(application: Application) : AndroidViewModel(application)
     }
 
     private fun buildSessionToken(): String {
-        val bytes = ByteArray(12)
-        java.security.SecureRandom().nextBytes(bytes)
-        return bytes.joinToString("") { "%02x".format(it) }
+        val chars = "abcdefghijklmnopqrstuvwxyz0123456789"
+        val rng = java.security.SecureRandom()
+        return (1..6).map { chars[rng.nextInt(chars.length)] }.joinToString("")
     }
 
     override fun onCleared() {
