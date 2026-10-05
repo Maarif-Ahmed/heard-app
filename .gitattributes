@@ -1,0 +1,8 @@
+# Force LF for all text files so Linux CI can parse them correctly
+* text=auto eol=lf
+
+# Keep binaries untouched
+*.jar binary
+*.png binary
+*.keystore binary
+*.jks binary
