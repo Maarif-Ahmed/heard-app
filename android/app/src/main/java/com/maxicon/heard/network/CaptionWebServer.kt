@@ -24,6 +24,9 @@ class CaptionWebServer(
     private var started = false
     private val json = Json { encodeDefaults = true }
 
+    /** Set by the ViewModel before starting the server. WebSocket connections must supply this. */
+    var sessionToken: String? = null
+
     fun startIfNeeded() {
         if (started) {
             return
@@ -116,11 +119,13 @@ class CaptionWebServer(
     }
 
     override fun openWebSocket(handshake: IHTTPSession): WebSocket {
-        return if (handshake.uri == "/ws") {
-            ClientSocket(handshake)
-        } else {
-            RejectSocket(handshake)
+        if (handshake.uri != "/ws") return RejectSocket(handshake)
+        val token = sessionToken
+        if (token != null) {
+            val supplied = handshake.parameters["t"]?.firstOrNull()
+            if (supplied.isNullOrBlank() || supplied != token) return RejectSocket(handshake)
         }
+        return ClientSocket(handshake)
     }
 
     override fun serveHttp(session: IHTTPSession): Response {

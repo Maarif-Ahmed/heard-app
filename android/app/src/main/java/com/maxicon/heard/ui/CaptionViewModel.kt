@@ -1284,9 +1284,17 @@ class CaptionViewModel(application: Application) : AndroidViewModel(application)
 
     // ── URL & server ─────────────────────────────────────────────────────────
 
+    private val sessionToken: String = buildSessionToken().also { webServer.sessionToken = it }
+
     private fun buildServerUrl(): String {
         val ip = NetworkUtils.localIpAddress(appContext) ?: "0.0.0.0"
-        return "http://$ip:${webServer.listenPort}"
+        return "http://$ip:${webServer.listenPort}/?t=$sessionToken"
+    }
+
+    private fun buildSessionToken(): String {
+        val bytes = ByteArray(12)
+        java.security.SecureRandom().nextBytes(bytes)
+        return bytes.joinToString("") { "%02x".format(it) }
     }
 
     override fun onCleared() {

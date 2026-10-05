@@ -748,7 +748,9 @@ function initHotkeys() {
 
 function connect() {
   const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-  const target = `${protocol}://${window.location.host}/ws`;
+  const token = new URLSearchParams(window.location.search).get("t");
+  const wsPath = token ? `/ws?t=${encodeURIComponent(token)}` : "/ws";
+  const target = `${protocol}://${window.location.host}${wsPath}`;
   socket = new WebSocket(target);
 
   setConnectionState(false, "Connecting");

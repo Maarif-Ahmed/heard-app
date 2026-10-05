@@ -71,7 +71,6 @@ data class LanguageProfile(
             "microphone testing",
             "reader pace mode",
             "Syed Maarif Ahmed",
-            "maarif@maxicon.pk",
             "start listening",
             "stop listening",
             "push mode"
