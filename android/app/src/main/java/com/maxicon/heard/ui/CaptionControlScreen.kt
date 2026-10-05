@@ -109,6 +109,7 @@ import com.maxicon.heard.R
 import com.maxicon.heard.model.LanguageProfile
 import com.maxicon.heard.speech.CaptureMode
 import com.maxicon.heard.speech.RecognitionMode
+import com.maxicon.heard.speech.VoskModelManager
 import kotlinx.coroutines.launch
 import java.util.Locale
 
@@ -137,6 +138,9 @@ fun CaptionControlScreen(
     onVibrationEnabledChanged: (Boolean) -> Unit,
     onAutoStartOnLaunchChanged: (Boolean) -> Unit,
     onDismissOnboarding: () -> Unit,
+    onDownloadVoskModel: () -> Unit,
+    onCancelVoskDownload: () -> Unit,
+    onDeleteVoskModel: () -> Unit,
 ) {
     val context = LocalContext.current
     val activity = context as? Activity
@@ -294,7 +298,10 @@ fun CaptionControlScreen(
                         uiState = uiState,
                         onLanguageSelected = onLanguageSelected,
                         onModeSelected = onModeSelected,
-                        onCaptureModeSelected = onCaptureModeSelected
+                        onCaptureModeSelected = onCaptureModeSelected,
+                        onDownloadVoskModel = onDownloadVoskModel,
+                        onCancelVoskDownload = onCancelVoskDownload,
+                        onDeleteVoskModel = onDeleteVoskModel
                     )
                 }
                 item {
@@ -447,6 +454,9 @@ private fun SettingsDrawerContent(
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
+            }
+            item {
+                AttributionsSection()
             }
             item {
                 PrivacySection()
@@ -944,14 +954,18 @@ private fun SpeechSettingsCard(
     uiState: CaptionUiState,
     onLanguageSelected: (LanguageProfile) -> Unit,
     onModeSelected: (RecognitionMode) -> Unit,
-    onCaptureModeSelected: (CaptureMode) -> Unit
+    onCaptureModeSelected: (CaptureMode) -> Unit,
+    onDownloadVoskModel: () -> Unit,
+    onCancelVoskDownload: () -> Unit,
+    onDeleteVoskModel: () -> Unit
 ) {
+    val cs = MaterialTheme.colorScheme
     BaseCard {
         Text(
             text = "Speech Settings",
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurface
+            color = cs.onSurface
         )
         DropdownSelector(
             label = "Language",
@@ -967,6 +981,30 @@ private fun SpeechSettingsCard(
             optionLabel = { it.label },
             onSelected = onModeSelected
         )
+        if (uiState.recognitionMode == RecognitionMode.OFFLINE) {
+            VoskModelBanner(
+                status = uiState.voskModelStatus,
+                progress = uiState.voskDownloadProgress,
+                canDelete = !uiState.isRunning,
+                onDownload = onDownloadVoskModel,
+                onCancel = onCancelVoskDownload,
+                onDelete = onDeleteVoskModel
+            )
+            if (uiState.selectedLanguage.recognizerTag != "en-US") {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp),
+                    color = cs.errorContainer
+                ) {
+                    Text(
+                        text = "Offline mode only supports English. Urdu recognition requires Online mode.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = cs.onErrorContainer,
+                        modifier = Modifier.padding(12.dp)
+                    )
+                }
+            }
+        }
         SegmentSelector(
             label = "Capture Mode",
             options = CaptureMode.entries,
@@ -974,6 +1012,88 @@ private fun SpeechSettingsCard(
             optionLabel = { it.label },
             onSelected = onCaptureModeSelected
         )
+    }
+}
+
+@Composable
+private fun VoskModelBanner(
+    status: VoskModelManager.Status,
+    progress: Float,
+    canDelete: Boolean,
+    onDownload: () -> Unit,
+    onCancel: () -> Unit,
+    onDelete: () -> Unit
+) {
+    val cs = MaterialTheme.colorScheme
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp),
+        color = if (status == VoskModelManager.Status.READY) cs.surfaceVariant else cs.secondaryContainer
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            when (status) {
+                VoskModelManager.Status.READY -> {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = if (canDelete) "Offline model ready (~50 MB)"
+                                   else "Offline model ready (~50 MB) — stop to delete",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = cs.onSurfaceVariant
+                        )
+                        TextButton(onClick = onDelete, enabled = canDelete) {
+                            Text(
+                                "Delete",
+                                color = if (canDelete) cs.error else cs.onSurfaceVariant.copy(alpha = 0.38f),
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                        }
+                    }
+                }
+                VoskModelManager.Status.DOWNLOADING -> {
+                    Text(
+                        text = "Downloading offline model… ${(progress * 100).toInt()}%",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = cs.onSecondaryContainer
+                    )
+                    LinearProgressIndicator(
+                        progress = { progress },
+                        modifier = Modifier.fillMaxWidth(),
+                        color = cs.secondary,
+                        trackColor = cs.secondaryContainer
+                    )
+                    OutlinedButton(onClick = onCancel, modifier = Modifier.fillMaxWidth()) {
+                        Text("Cancel")
+                    }
+                }
+                VoskModelManager.Status.ERROR -> {
+                    Text(
+                        text = "Download failed. Check connection and retry.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = cs.error
+                    )
+                    Button(onClick = onDownload, modifier = Modifier.fillMaxWidth()) {
+                        Text("Retry Download")
+                    }
+                }
+                else -> {
+                    Text(
+                        text = "Offline mode requires the Vosk model (~50 MB, downloaded once).",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = cs.onSecondaryContainer
+                    )
+                    Button(onClick = onDownload, modifier = Modifier.fillMaxWidth()) {
+                        Text("Download Offline Model")
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -1709,6 +1829,50 @@ private fun <T> SegmentSelector(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun AttributionsSection() {
+    val cs = MaterialTheme.colorScheme
+    DrawerSection("Attributions") {
+        AttributionRow(
+            name = "Vosk Offline Speech Recognition",
+            detail = "Apache 2.0 · alphacephei.com/vosk"
+        )
+        HorizontalDivider(color = cs.outlineVariant.copy(alpha = 0.5f))
+        AttributionRow(
+            name = "NanoHTTPD Web Server",
+            detail = "BSD-3-Clause · github.com/NanoHttpd/nanohttpd"
+        )
+        HorizontalDivider(color = cs.outlineVariant.copy(alpha = 0.5f))
+        AttributionRow(
+            name = "Android SpeechRecognizer API",
+            detail = "Provided by the Android platform (Google)"
+        )
+    }
+}
+
+@Composable
+private fun AttributionRow(name: String, detail: String) {
+    val cs = MaterialTheme.colorScheme
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics(mergeDescendants = true) {},
+        verticalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        Text(
+            text = name,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = cs.onSurface
+        )
+        Text(
+            text = detail,
+            style = MaterialTheme.typography.bodySmall,
+            color = cs.onSurfaceVariant
+        )
     }
 }
 

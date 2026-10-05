@@ -136,6 +136,9 @@ class MainActivity : ComponentActivity() {
                         onVibrationEnabledChanged = viewModel::setVibrationEnabled,
                         onAutoStartOnLaunchChanged = viewModel::setAutoStartOnLaunch,
                         onDismissOnboarding = viewModel::dismissOnboarding,
+                        onDownloadVoskModel = viewModel::downloadVoskModel,
+                        onCancelVoskDownload = viewModel::cancelVoskDownload,
+                        onDeleteVoskModel = viewModel::deleteVoskModel,
                     )
                 }
             }

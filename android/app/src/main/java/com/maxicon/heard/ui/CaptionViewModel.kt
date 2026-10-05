@@ -18,6 +18,8 @@ import com.maxicon.heard.network.NetworkUtils
 import com.maxicon.heard.speech.CaptureMode
 import com.maxicon.heard.speech.RecognitionMode
 import com.maxicon.heard.speech.SpeechPipeline
+import com.maxicon.heard.speech.VoskModelManager
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -59,7 +61,7 @@ class CaptionViewModel(application: Application) : AndroidViewModel(application)
         appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     }
     private val webServer = CaptionWebServer(appContext)
-    private val speechPipeline = SpeechPipeline(appContext, viewModelScope)
+    private val speechPipeline = SpeechPipeline(appContext)
     private val lineBuffer = ArrayDeque<String>()
     private var customVocabulary: List<String> = loadCustomVocabulary()
 
@@ -126,6 +128,7 @@ class CaptionViewModel(application: Application) : AndroidViewModel(application)
             ambientDb = savedMicCalibration?.ambientDb,
             speechDb = savedMicCalibration?.speechDb
         )
+        _uiState.update { it.copy(voskModelStatus = VoskModelManager.status(appContext)) }
     }
 
     private val speechListener = object : SpeechPipeline.Listener {
@@ -261,6 +264,60 @@ class CaptionViewModel(application: Application) : AndroidViewModel(application)
         _uiState.update { it.copy(recognitionMode = mode) }
         if (_uiState.value.isRunning) {
             restartSpeech("Recognition mode switched to ${mode.label}")
+        }
+    }
+
+    private var voskDownloadJob: Job? = null
+
+    fun downloadVoskModel() {
+        if (_uiState.value.voskModelStatus == VoskModelManager.Status.DOWNLOADING) return
+        _uiState.update {
+            it.copy(
+                voskModelStatus = VoskModelManager.Status.DOWNLOADING,
+                voskDownloadProgress = 0f
+            )
+        }
+        voskDownloadJob = viewModelScope.launch {
+            val success = try {
+                VoskModelManager.download(appContext) { progress ->
+                    _uiState.update { it.copy(voskDownloadProgress = progress) }
+                }
+            } catch (_: Exception) {
+                false
+            }
+            val newStatus = if (success) VoskModelManager.Status.READY else VoskModelManager.Status.ERROR
+            _uiState.update {
+                it.copy(
+                    voskModelStatus = newStatus,
+                    voskDownloadProgress = if (success) 1f else 0f
+                )
+            }
+            if (success && _uiState.value.recognitionMode == RecognitionMode.OFFLINE && _uiState.value.isRunning) {
+                restartSpeech("Offline model ready")
+            }
+        }
+    }
+
+    fun cancelVoskDownload() {
+        voskDownloadJob?.cancel()
+        voskDownloadJob = null
+        _uiState.update {
+            it.copy(
+                voskModelStatus = VoskModelManager.Status.NOT_DOWNLOADED,
+                voskDownloadProgress = 0f
+            )
+        }
+    }
+
+    fun deleteVoskModel() {
+        viewModelScope.launch(Dispatchers.IO) {
+            VoskModelManager.delete(appContext)
+            _uiState.update {
+                it.copy(
+                    voskModelStatus = VoskModelManager.Status.NOT_DOWNLOADED,
+                    voskDownloadProgress = 0f
+                )
+            }
         }
     }
 
@@ -798,41 +855,11 @@ class CaptionViewModel(application: Application) : AndroidViewModel(application)
             newPartial.length >= pendingFinal.length + 3
     }
 
-    private fun chooseBestFinalText(finalText: String, currentPartial: String): String {
-        if (finalText.isBlank()) {
-            return currentPartial.trim()
-        }
+    private fun chooseBestFinalText(finalText: String, currentPartial: String): String =
+        CaptionTextUtils.chooseBestFinalText(finalText, currentPartial)
 
-        val partial = currentPartial.trim()
-        if (partial.isBlank()) {
-            return finalText
-        }
-
-        val finalWords = finalText.split(WORD_SPLIT_REGEX).count { it.isNotBlank() }
-        val partialWords = partial.split(WORD_SPLIT_REGEX).count { it.isNotBlank() }
-
-        return when {
-            partial.startsWith(finalText, ignoreCase = true) &&
-                partial.length >= finalText.length + 2 &&
-                partialWords <= finalWords + 3 -> partial
-
-            else -> finalText
-        }
-    }
-
-    private fun computeFinalizationDelayMs(text: String, confidence: Float?): Long {
-        val words = text.split(WORD_SPLIT_REGEX).count { it.isNotBlank() }
-        val confidenceBase = when {
-            confidence == null -> 140L
-            confidence >= 0.9f -> 80L
-            confidence >= 0.75f -> 120L
-            confidence >= 0.55f -> 170L
-            else -> 230L
-        }
-
-        val shortUtterancePenalty = if (words <= 2) 40L else 0L
-        return (confidenceBase + shortUtterancePenalty).coerceIn(80L, 280L)
-    }
+    private fun computeFinalizationDelayMs(text: String, confidence: Float?): Long =
+        CaptionTextUtils.computeFinalizationDelayMs(text, confidence)
 
     private fun cancelPendingFinalization() {
         pendingFinalizeJob?.cancel()
@@ -1308,12 +1335,8 @@ class CaptionViewModel(application: Application) : AndroidViewModel(application)
         super.onCleared()
     }
 
-    private fun normalizeCaptionText(input: String): String {
-        return input
-            .replace(MULTI_SPACE_REGEX, " ")
-            .replace(SPACE_BEFORE_PUNCT_REGEX, "$1")
-            .trim()
-    }
+    private fun normalizeCaptionText(input: String): String =
+        CaptionTextUtils.normalizeCaptionText(input)
 
     private fun appendFinalLine(text: String) {
         lineBuffer.addLast(text)
@@ -1363,7 +1386,5 @@ class CaptionViewModel(application: Application) : AndroidViewModel(application)
         private const val ADAPTIVE_SWITCH_FINAL_VOTES = 4
         private const val MAX_CUSTOM_VOCAB = 160
         private const val MAX_ACTIVE_BIAS_PHRASES = 220
-        private val MULTI_SPACE_REGEX = Regex("\\s+")
-        private val SPACE_BEFORE_PUNCT_REGEX = Regex("\\s+([,.;!?])")
     }
 }

@@ -10,8 +10,6 @@ import android.os.SystemClock
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
-import java.util.Locale
-
 sealed interface EngineEvent {
     data class Partial(val text: String) : EngineEvent
     data class Final(val text: String, val confidence: Float?) : EngineEvent
@@ -24,7 +22,7 @@ class AndroidSpeechEngine(
     private val context: Context,
     private val preferOffline: Boolean,
     private val onEvent: (EngineEvent) -> Unit
-) {
+) : SpeechEngine {
     private val mainHandler = Handler(Looper.getMainLooper())
     private var speechRecognizer: SpeechRecognizer? = null
     private var listening = false
@@ -41,6 +39,8 @@ class AndroidSpeechEngine(
     private var lastPartialText: String = ""
     private var calibratedAmbientDb: Float? = null
     private var calibratedDeltaDb: Float? = null
+    private var consecutiveErrors = 0
+    private var cachedBiasTokens: Set<String>? = null
 
     private data class ResultCandidate(
         val text: String,
@@ -86,14 +86,13 @@ class AndroidSpeechEngine(
                 speechActive = false
                 onEvent(EngineEvent.Vad(active = false, levelDb = smoothedRmsDb))
             }
+            consecutiveErrors++
             onEvent(EngineEvent.Error(error))
-            when (error) {
-                SpeechRecognizer.ERROR_NO_MATCH,
-                SpeechRecognizer.ERROR_SPEECH_TIMEOUT,
-                SpeechRecognizer.ERROR_RECOGNIZER_BUSY,
-                SpeechRecognizer.ERROR_SERVER -> scheduleRestart(90)
-
-                else -> scheduleRestart(130)
+            if (consecutiveErrors > MAX_ERRORS_BEFORE_RECREATE) {
+                consecutiveErrors = 0
+                scheduleRestartWithRecreation(RECREATE_RESTART_DELAY_MS)
+            } else {
+                scheduleRestart(errorRestartDelay(error))
             }
         }
 
@@ -102,6 +101,7 @@ class AndroidSpeechEngine(
                 return
             }
             markEngineActivity()
+            consecutiveErrors = 0
             selectBestFinalCandidate(results)?.let {
                 lastPartialText = ""
                 onEvent(
@@ -131,33 +131,34 @@ class AndroidSpeechEngine(
         override fun onEvent(eventType: Int, params: Bundle?) = Unit
     }
 
-    fun start(
-        selectedLanguageTag: String,
-        biasPhrases: List<String> = emptyList()
+    override fun start(
+        languageTag: String,
+        biasPhrases: List<String>
     ) {
-        languageTag = selectedLanguageTag
+        this.languageTag = languageTag
         this.biasPhrases = biasPhrases.distinct().take(MAX_BIAS_PHRASES)
+        cachedBiasTokens = null
         listening = true
         lastPartialText = ""
+        consecutiveErrors = 0
         markEngineActivity()
         mainHandler.post {
             if (!ensureRecognizer()) {
                 onEvent(EngineEvent.Error(SpeechRecognizer.ERROR_CLIENT))
                 return@post
             }
-            applyAudioCaptureProfile()
             clearPendingRestart()
             beginListening()
         }
     }
 
-    fun prepare() {
+    override fun prepare() {
         mainHandler.post {
             ensureRecognizer()
         }
     }
 
-    fun setVadCalibration(ambientDb: Float?, speechDb: Float?) {
+    override fun setVadCalibration(ambientDb: Float?, speechDb: Float?) {
         calibratedAmbientDb = ambientDb?.takeIf { it.isFinite() }
         val speech = speechDb?.takeIf { it.isFinite() }
         calibratedDeltaDb = if (calibratedAmbientDb != null && speech != null) {
@@ -167,7 +168,7 @@ class AndroidSpeechEngine(
         }
     }
 
-    fun stop() {
+    override fun stop() {
         listening = false
         clearPendingRestart()
         clearWatchdog()
@@ -177,11 +178,10 @@ class AndroidSpeechEngine(
                 stopListening()
                 cancel()
             }
-            restoreAudioCaptureProfile()
         }
     }
 
-    fun release() {
+    override fun release() {
         stop()
         mainHandler.post {
             speechRecognizer?.destroy()
@@ -220,6 +220,9 @@ class AndroidSpeechEngine(
         }
     }
 
+    private fun errorRestartDelay(error: Int): Long =
+        SpeechEngineUtils.errorRestartDelay(error, consecutiveErrors)
+
     private fun scheduleRestart(delayMs: Long) {
         if (!listening) {
             return
@@ -230,6 +233,25 @@ class AndroidSpeechEngine(
                 return@Runnable
             }
             beginListening()
+        }
+        pendingRestart = runnable
+        mainHandler.postDelayed(runnable, delayMs)
+    }
+
+    private fun scheduleRestartWithRecreation(delayMs: Long) {
+        if (!listening) {
+            return
+        }
+        clearPendingRestart()
+        val runnable = Runnable {
+            if (!listening) {
+                return@Runnable
+            }
+            speechRecognizer?.destroy()
+            speechRecognizer = null
+            if (ensureRecognizer()) {
+                beginListening()
+            }
         }
         pendingRestart = runnable
         mainHandler.postDelayed(runnable, delayMs)
@@ -256,7 +278,6 @@ class AndroidSpeechEngine(
                     speechRecognizer?.cancel()
                 }
                 beginListening()
-                return@Runnable
             }
             scheduleWatchdog()
         }
@@ -273,10 +294,6 @@ class AndroidSpeechEngine(
     private fun markEngineActivity() {
         lastSpeechEventAtMs = SystemClock.elapsedRealtime()
     }
-
-    private fun applyAudioCaptureProfile() = Unit
-
-    private fun restoreAudioCaptureProfile() = Unit
 
     private fun ensureRecognizer(): Boolean {
         if (!SpeechRecognizer.isRecognitionAvailable(context)) {
@@ -332,85 +349,20 @@ class AndroidSpeechEngine(
             }
     }
 
-    private fun scoreCandidate(
-        candidate: ResultCandidate,
-        biasTokens: Set<String>
-    ): Float {
-        var score = (candidate.confidence ?: DEFAULT_UNKNOWN_CONFIDENCE) * 2.2f
-        val candidateText = candidate.text
-        val tokens = candidateText
-            .lowercase(Locale.US)
-            .split(TOKEN_SPLIT_REGEX)
-            .filter { it.isNotBlank() }
-
-        if (lastPartialText.isNotBlank()) {
-            val partial = lastPartialText.lowercase(Locale.US)
-            val current = candidateText.lowercase(Locale.US)
-            if (current.startsWith(partial)) {
-                score += 0.62f
-            } else if (partial.startsWith(current)) {
-                score += 0.18f
-            } else if (partial.takeLast(4).let { it.isNotBlank() && current.contains(it) }) {
-                score += 0.08f
-            }
-        }
-
-        if (biasTokens.isNotEmpty() && tokens.isNotEmpty()) {
-            val matchedBiasTokens = tokens.count { it in biasTokens }
-            score += matchedBiasTokens.coerceAtMost(MAX_BIAS_MATCH_BONUS_TOKENS) * 0.16f
-        }
-
-        val latinCount = candidateText.count { it.isLatinLetter() }
-        val arabicCount = candidateText.count { it.isArabicLetter() }
-        when (languageTag) {
-            "en-US" -> {
-                if (latinCount >= arabicCount + 3) {
-                    score += 0.24f
-                } else if (arabicCount > latinCount) {
-                    score -= 0.11f
-                }
-            }
-
-            "ur-PK" -> {
-                if (arabicCount > 0) {
-                    score += 0.31f
-                } else if (latinCount > 0) {
-                    score -= 0.05f
-                }
-            }
-        }
-
-        score += tokens.size.coerceAtMost(7) * 0.012f
-        return score
-    }
+    private fun scoreCandidate(candidate: ResultCandidate, biasTokens: Set<String>): Float =
+        SpeechEngineUtils.scoreCandidate(
+            text = candidate.text,
+            confidence = candidate.confidence,
+            lastPartialText = lastPartialText,
+            biasTokens = biasTokens,
+            languageTag = languageTag
+        )
 
     private fun buildBiasTokenSet(): Set<String> {
-        if (biasPhrases.isEmpty()) {
-            return emptySet()
-        }
-        return biasPhrases
-            .asSequence()
-            .flatMap { phrase ->
-                phrase
-                    .lowercase(Locale.US)
-                    .split(TOKEN_SPLIT_REGEX)
-                    .asSequence()
-            }
-            .map { it.trim() }
-            .filter { it.length >= 2 }
-            .take(MAX_BIAS_TOKENS)
-            .toSet()
-    }
-
-    private fun Char.isArabicLetter(): Boolean {
-        val block = Character.UnicodeBlock.of(this)
-        return block == Character.UnicodeBlock.ARABIC ||
-            block == Character.UnicodeBlock.ARABIC_PRESENTATION_FORMS_A ||
-            block == Character.UnicodeBlock.ARABIC_PRESENTATION_FORMS_B
-    }
-
-    private fun Char.isLatinLetter(): Boolean {
-        return this in 'A'..'Z' || this in 'a'..'z'
+        cachedBiasTokens?.let { return it }
+        val result = SpeechEngineUtils.buildBiasTokenSet(biasPhrases)
+        cachedBiasTokens = result
+        return result
     }
 
     private fun resetVad() {
@@ -470,9 +422,6 @@ class AndroidSpeechEngine(
     companion object {
         private const val MAX_BIAS_PHRASES = 160
         private const val MAX_RESULTS = 5
-        private const val DEFAULT_UNKNOWN_CONFIDENCE = 0.42f
-        private const val MAX_BIAS_MATCH_BONUS_TOKENS = 3
-        private const val MAX_BIAS_TOKENS = 500
         private const val DEFAULT_START_MARGIN_DB = 4.2f
         private const val DEFAULT_STOP_MARGIN_DB = 2.1f
         private const val MIN_CALIBRATED_START_MARGIN_DB = 2.6f
@@ -481,6 +430,7 @@ class AndroidSpeechEngine(
         private const val MAX_CALIBRATED_STOP_MARGIN_DB = 2.5f
         private const val WATCHDOG_CHECK_MS = 1_000L
         private const val WATCHDOG_IDLE_TIMEOUT_MS = 3_000L
-        private val TOKEN_SPLIT_REGEX = Regex("[^\\p{L}\\p{N}']+")
+        private const val MAX_ERRORS_BEFORE_RECREATE = 7
+        private const val RECREATE_RESTART_DELAY_MS = 2_000L
     }
 }

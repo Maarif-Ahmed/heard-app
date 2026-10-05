@@ -2,11 +2,9 @@ package com.maxicon.heard.speech
 
 import android.content.Context
 import android.speech.SpeechRecognizer
-import kotlinx.coroutines.CoroutineScope
 
 class SpeechPipeline(
-    private val context: Context,
-    private val scope: CoroutineScope
+    private val context: Context
 ) {
     interface Listener {
         fun onPartial(text: String)
@@ -29,15 +27,14 @@ class SpeechPipeline(
     private var running = false
     private var activeTarget: Target? = null
 
-    private val onlineEngine = AndroidSpeechEngine(
+    private val onlineEngine: SpeechEngine = AndroidSpeechEngine(
         context = context,
         preferOffline = false,
         onEvent = ::handleOnlineEvent
     )
 
-    private val offlineEngine = AndroidSpeechEngine(
+    private val offlineEngine: SpeechEngine = VoskEngine(
         context = context,
-        preferOffline = true,
         onEvent = ::handleOfflineEvent
     )
 

@@ -3,6 +3,7 @@ package com.maxicon.heard.ui
 import com.maxicon.heard.model.LanguageProfile
 import com.maxicon.heard.speech.CaptureMode
 import com.maxicon.heard.speech.RecognitionMode
+import com.maxicon.heard.speech.VoskModelManager
 
 data class CaptionUiState(
     val selectedLanguage: LanguageProfile = LanguageProfile.English,
@@ -47,4 +48,8 @@ data class CaptionUiState(
 
     // Onboarding
     val showOnboarding: Boolean = true,
+
+    // Vosk offline model
+    val voskModelStatus: VoskModelManager.Status = VoskModelManager.Status.NOT_DOWNLOADED,
+    val voskDownloadProgress: Float = 0f,
 )

@@ -301,7 +301,7 @@ private object Romanizer {
         val words = input
             .replace(MULTI_SPACE_REGEX, " ")
             .trim()
-            .split(WORD_SPLIT_REGEX)
+            .split(MULTI_SPACE_REGEX)
 
         val converted = words.map { word ->
             val parts = TOKEN_PARTS_REGEX.matchEntire(word)
@@ -411,7 +411,6 @@ private object Romanizer {
 
     private val DIACRITIC_REGEX = Regex("\\p{M}+")
     private val MULTI_SPACE_REGEX = Regex("\\s+")
-    private val WORD_SPLIT_REGEX = Regex("\\s+")
     private val APOSTROPHE_REGEX = Regex("[`']")
     private val NON_ASCII_TOKEN_REGEX = Regex("[^A-Za-z0-9-]")
     private val NON_ASCII_LOOSE_REGEX = Regex("[^A-Za-z0-9\\s.,!?-]")

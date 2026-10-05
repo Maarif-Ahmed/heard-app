@@ -37,8 +37,8 @@ This repository contains a production-oriented starter implementation of a real-
 
 ## Runtime notes
 
-- `ONLINE` mode uses platform online speech recognition.
-- `OFFLINE` mode uses platform offline speech recognition where supported by the device/language packs.
+- `ONLINE` mode uses the platform's online speech recognition (supports English, Urdu, Roman Urdu).
+- `OFFLINE` mode uses the Vosk on-device engine (English only — Urdu requires Online mode). The model (~50 MB) is downloaded once on first use and stored locally.
 - Roman Urdu mode uses Urdu STT (`ur-PK`) and transliterates output for Latin-script display.
 - Captions are kept as rolling finalized lines while partial speech stays in a dedicated line to avoid visual jitter.
 - Default language profile is `English` (you can switch to `Urdu` or `Roman Urdu` from the mobile controls).
@@ -64,6 +64,14 @@ This repository contains a production-oriented starter implementation of a real-
 - `INTERNET`
 - `ACCESS_NETWORK_STATE`
 - `ACCESS_WIFI_STATE`
+
+## Attributions
+
+| Library | License | Purpose |
+|---|---|---|
+| [Vosk](https://alphacephei.com/vosk/) | Apache 2.0 | On-device offline speech recognition engine |
+| [NanoHTTPD](https://github.com/NanoHttpd/nanohttpd) | BSD-3-Clause | Embedded HTTP/WebSocket server hosted on-device |
+| Android SpeechRecognizer API | Platform (Google) | Online speech recognition via `android.speech` |
 
 ## Next extension points
 
