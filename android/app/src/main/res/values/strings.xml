@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Heard - Accessibility STT App</string>
+    <string name="app_description">Real-time accessible speech-to-text captions with reader-paced display.</string>
+    <string name="app_developer">Marif Ahmed</string>
+    <string name="app_support_email">maarif@maxicon.pk</string>
+    <string name="app_branding_developed_by">Developed by Marif Ahmed</string>
+    <string name="app_branding_contact">For queries: maarif@maxicon.pk</string>
+    <string name="app_branding_company">Maxicon</string>
+
+    <!-- Privacy & Data section -->
+    <string name="privacy_title">Privacy &amp; Data</string>
+    <string name="privacy_author_label">Author</string>
+    <string name="privacy_author">Marif Ahmed</string>
+    <string name="privacy_audio_label">Audio Processing</string>
+    <string name="privacy_audio">Microphone audio is processed in real-time on your device only. No audio is stored, uploaded, or transmitted to any external server.</string>
+    <string name="privacy_network_label">Network &amp; Captions</string>
+    <string name="privacy_network">Caption text is broadcast locally over your Wi-Fi network (port 8765) to browsers you open on the same network. No data leaves your local network or is sent to the internet.</string>
+    <string name="privacy_no_account_label">No Account or Tracking</string>
+    <string name="privacy_no_account">Heard requires no user account and collects no personal information. There is no advertising, analytics, or third-party data sharing of any kind.</string>
+    <string name="privacy_permissions_label">Permissions Used</string>
+    <string name="privacy_permissions">Microphone — required to capture speech for captions.\nNotification — to show a persistent status notification while captions are running (can be denied; captions still work).</string>
+
+    <!-- Accessibility content descriptions -->
+    <string name="cd_open_settings">Open settings drawer</string>
+    <string name="cd_close_settings">Close settings drawer</string>
+    <string name="cd_session_running">Caption session is running</string>
+    <string name="cd_session_stopped">Caption session is stopped</string>
+    <string name="cd_start_session">Start caption session</string>
+    <string name="cd_stop_session">Stop caption session</string>
+    <string name="cd_push_to_talk_start">Push to talk: tap to start listening</string>
+    <string name="cd_push_to_talk_stop">Push to talk: tap to stop listening</string>
+    <string name="cd_mic_level">Microphone input level indicator</string>
+</resources>

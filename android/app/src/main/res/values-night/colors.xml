@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Launcher icon background: black in dark mode -->
+    <color name="ic_app_logo_background">#FF000000</color>
+</resources>

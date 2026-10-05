@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="description" content="Heard - Accessibility STT App live captions optimized for low-vision distance reading with reader-paced controls.">
+  <meta name="author" content="Syed Maarif Ahmed">
+  <meta name="keywords" content="Heard - Accessibility STT App, live captions, speech to text, assistive technology, reader pace mode">
+  <title>Heard - Accessibility STT App</title>
+  <link rel="stylesheet" href="styles.css?v=20260305d">
+</head>
+<body>
+  <div class="layout">
+    <header class="topbar">
+      <div class="brand">
+        <p class="kicker">Heard - Accessibility STT App</p>
+        <h1>Distance Captions</h1>
+      </div>
+      <div class="chips">
+        <span id="connectionChip" class="chip chip-warn">Connecting</span>
+        <span id="speechChip" class="chip">Speech: --</span>
+        <span id="languageChip" class="chip">Language: --</span>
+        <span id="clockChip" class="chip">--:--</span>
+        <button id="settingsToggle" class="chip chip-button" type="button">Display</button>
+      </div>
+    </header>
+
+    <aside id="themePanel" class="theme-panel hidden" aria-label="Display accessibility settings">
+      <h2>Display & Reading</h2>
+      <p class="panel-note">RP-friendly controls for contrast, size, and reading pace.</p>
+
+      <label class="setting-row switch-row">
+        <span>Reader Pace Mode</span>
+        <input id="readingModeToggle" type="checkbox">
+      </label>
+
+      <label class="setting-row range-row">
+        <span>Reading Speed</span>
+        <input id="readingWpmRange" type="range" min="80" max="220" step="5" value="130">
+        <output id="readingWpmValue">130 WPM</output>
+      </label>
+
+      <div class="reader-actions">
+        <button id="readingPauseBtn" class="reader-btn" type="button">Pause</button>
+        <button id="readingBackBtn" class="reader-btn" type="button">Back</button>
+        <button id="readingNextBtn" class="reader-btn" type="button">Next</button>
+        <button id="readingCatchUpBtn" class="reader-btn" type="button">Catch Up</button>
+      </div>
+
+      <label class="setting-row">
+        <span>Background</span>
+        <input id="bgColorPicker" type="color" value="#000000">
+      </label>
+
+      <label class="setting-row">
+        <span>Caption Box</span>
+        <input id="boxColorPicker" type="color" value="#0d1520">
+      </label>
+
+      <label class="setting-row">
+        <span>Text</span>
+        <input id="textColorPicker" type="color" value="#ffffff">
+      </label>
+
+      <label class="setting-row range-row">
+        <span>Text Size</span>
+        <input id="fontScaleRange" type="range" min="85" max="200" step="5" value="100">
+        <output id="fontScaleValue">100%</output>
+      </label>
+
+      <label class="setting-row range-row">
+        <span>Visible Lines</span>
+        <input id="maxLinesRange" type="range" min="2" max="6" step="1" value="3">
+        <output id="maxLinesValue">3</output>
+      </label>
+
+      <label class="setting-row range-row">
+        <span>Line Spacing</span>
+        <input id="lineHeightRange" type="range" min="100" max="180" step="10" value="110">
+        <output id="lineHeightValue">1.1</output>
+      </label>
+
+      <label class="setting-row range-row">
+        <span>Letter Spacing</span>
+        <input id="letterSpacingRange" type="range" min="0" max="8" step="1" value="0">
+        <output id="letterSpacingValue">0em</output>
+      </label>
+
+      <label class="setting-row switch-row">
+        <span>High Contrast (Pure Black)</span>
+        <input id="highContrastToggle" type="checkbox">
+      </label>
+
+      <label class="setting-row switch-row">
+        <span>Show Partial Text</span>
+        <input id="showPartialToggle" type="checkbox" checked>
+      </label>
+
+      <button id="themeReset" class="reset-btn" type="button">Reset to Default</button>
+    </aside>
+
+    <main class="caption-shell">
+      <section class="caption-stage">
+        <div class="focus-guide" aria-hidden="true"></div>
+        <div id="finalLines" class="final-lines" aria-live="polite" aria-atomic="false"></div>
+        <div id="partialDisplay" class="partial-display" aria-hidden="true"></div>
+      </section>
+      <p id="partialLine" class="sr-only" aria-live="off"></p>
+    </main>
+
+    <footer class="credit">
+      Developed by Syed Maarif Ahmed, if you have a query please mail me at maarif@maxicon.pk
+    </footer>
+  </div>
+
+  <script src="app.js?v=20260305d"></script>
+</body>
+</html>
