@@ -20,11 +20,13 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
-
       - name: Make gradlew executable
         run: chmod +x android/gradlew
+
+      - name: Configure Gradle heap
+        run: |
+          mkdir -p ~/.gradle
+          echo "org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=512m -Dfile.encoding=UTF-8" > ~/.gradle/gradle.properties
 
       - name: Decode keystore
         env:
